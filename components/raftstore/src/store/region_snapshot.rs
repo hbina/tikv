@@ -1,7 +1,7 @@
 // Copyright 2016 TiKV Project Authors. Licensed under Apache-2.0.
 
 use engine_traits::{
-    IterOptions, KvEngine, Peekable, ReadOptions, Result as EngineResult, Snapshot,
+    IterOptions, KvEngine, Peekable, ReadOptions, Result as EngineResult, SeekKey, Snapshot,
 };
 use kvproto::metapb::Region;
 use kvproto::raft_serverpb::RaftApplyState;
@@ -314,42 +314,6 @@ where
         self.iter.seek_to_last().map_err(Error::from)
     }
 
-    pub fn seek(&mut self, key: &[u8]) -> Result<bool> {
-        fail_point!("region_snapshot_seek", |_| {
-            Err(box_err!("region seek error"))
-        });
-        self.should_seekable(key)?;
-        let key = keys::data_key(key);
-        self.iter.seek(key.as_slice().into()).map_err(Error::from)
-    }
-
-    pub fn seek_for_prev(&mut self, key: &[u8]) -> Result<bool> {
-        self.should_seekable(key)?;
-        let key = keys::data_key(key);
-        self.iter
-            .seek_for_prev(key.as_slice().into())
-            .map_err(Error::from)
-    }
-
-    pub fn prev(&mut self) -> Result<bool> {
-        self.iter.prev().map_err(Error::from)
-    }
-
-    #[inline]
-    pub fn key(&self) -> &[u8] {
-        keys::origin_key(self.iter.key())
-    }
-
-    #[inline]
-    pub fn value(&self) -> &[u8] {
-        self.iter.value()
-    }
-
-    #[inline]
-    pub fn valid(&self) -> Result<bool> {
-        self.iter.valid().map_err(Error::from)
-    }
-
     #[inline]
     pub fn should_seekable(&self, key: &[u8]) -> Result<()> {
         if let Err(e) = util::check_key_in_region_inclusive(key, &self.region) {
@@ -359,9 +323,58 @@ where
     }
 }
 
-impl<S> Iterator for RegionIterator<S> {
-    fn next(&mut self) -> Result<bool> {
-        self.iter.next().map_err(Error::from)
+impl<S> engine_traits::Iterator for RegionIterator<S>
+where
+    S: Send + Snapshot,
+{
+    fn next(&mut self) -> EngineResult<bool> {
+        self.iter.next().map_err(EngineError::from)
+    }
+
+    fn seek<'a>(&'a mut self, key: SeekKey<'a>) -> EngineResult<bool> {
+        fail_point!("region_snapshot_seek", |_| {
+            Err(box_err!("region seek error"))
+        });
+        if let SeekKey::Key(key) = key {
+            self.should_seekable(key)?;
+            let key = keys::data_key(key);
+            self.iter
+                .seek(key.as_slice().into())
+                .map_err(EngineError::from)
+        } else {
+            Err(EngineError::Other("Unsupported SeekKey type."))
+        }
+    }
+
+    fn seek_for_prev<'a>(&'a mut self, key: SeekKey<'a>) -> EngineResult<bool> {
+        if let SeekKey::Key(key) = key {
+            self.should_seekable(key)?;
+            let key = keys::data_key(key);
+            self.iter
+                .seek_for_prev(key.as_slice().into())
+                .map_err(EngineError::from)
+        } else {
+            Err(EngineError::Other("Unsupported SeekKey type."))
+        }
+    }
+
+    fn prev(&mut self) -> EngineResult<bool> {
+        self.iter.prev().map_err(EngineError::from)
+    }
+
+    #[inline]
+    fn key(&self) -> &[u8] {
+        keys::origin_key(self.iter.key())
+    }
+
+    #[inline]
+    fn value(&self) -> &[u8] {
+        self.iter.value()
+    }
+
+    #[inline]
+    fn valid(&self) -> EngineResult<bool> {
+        self.iter.valid().map_err(EngineError::from)
     }
 }
 
