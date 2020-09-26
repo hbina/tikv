@@ -335,10 +335,6 @@ where
         self.iter.prev().map_err(Error::from)
     }
 
-    pub fn next(&mut self) -> Result<bool> {
-        self.iter.next().map_err(Error::from)
-    }
-
     #[inline]
     pub fn key(&self) -> &[u8] {
         keys::origin_key(self.iter.key())
@@ -360,6 +356,12 @@ where
             return handle_check_key_in_region_error(e);
         }
         Ok(())
+    }
+}
+
+impl<S> Iterator for RegionIterator<S> {
+    fn next(&mut self) -> Result<bool> {
+        self.iter.next().map_err(Error::from)
     }
 }
 
