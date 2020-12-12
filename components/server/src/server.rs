@@ -88,6 +88,9 @@ use tikv_util::{
 use tokio::runtime::Builder;
 
 use crate::{setup::*, signal_handler};
+use std::sync::RwLock;
+use tikv::server::config::ServerConfigManager;
+use tikv_util::worker::LazyWorker;
 
 /// Run a TiKV server. Returns when the server is shutdown by the user, in which
 /// case the server will be properly stopped.
@@ -630,6 +633,13 @@ impl<ER: RaftEngine> TiKVServer<ER> {
         let import_path = self.store_path.join("import");
         let importer =
             Arc::new(SSTImporter::new(import_path, self.encryption_key_manager.clone()).unwrap());
+
+        cfg_controller.register(
+            tikv::config::Module::Server,
+            Box::new(ServerConfigManager(Arc::new(RwLock::new(
+                self.config.server.clone(),
+            )))),
+        );
 
         let split_check_runner = SplitCheckRunner::new(
             engines.engines.kv.clone(),
