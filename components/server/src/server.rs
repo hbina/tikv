@@ -17,10 +17,11 @@ use std::{
     fs::{self, File},
     net::SocketAddr,
     path::{Path, PathBuf},
-    sync::{atomic::AtomicU64, Arc, Mutex},
+    sync::{atomic::AtomicU64, Arc, Mutex, RwLock},
     time::{Duration, Instant},
 };
 
+use crate::{setup::*, signal_handler};
 use concurrency_manager::ConcurrencyManager;
 use encryption_export::{data_key_manager_from_config, DataKeyManager};
 use engine_rocks::{
@@ -58,6 +59,7 @@ use raftstore::{
     },
 };
 use security::SecurityManager;
+use tikv::server::config::ServerConfigManager;
 use tikv::{
     config::{ConfigController, DBConfigManger, DBType, TiKvConfig, DEFAULT_ROCKSDB_SUB_DIR},
     coprocessor, coprocessor_v2,
@@ -86,11 +88,6 @@ use tikv_util::{
     worker::{Builder as WorkerBuilder, FutureWorker, LazyWorker, Worker},
 };
 use tokio::runtime::Builder;
-
-use crate::{setup::*, signal_handler};
-use std::sync::RwLock;
-use tikv::server::config::ServerConfigManager;
-use tikv_util::worker::LazyWorker;
 
 /// Run a TiKV server. Returns when the server is shutdown by the user, in which
 /// case the server will be properly stopped.

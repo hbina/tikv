@@ -1,3 +1,5 @@
+// Copyright 2021 TiKV Project Authors. Licensed under Apache-2.0.
+
 use std::sync::{Arc, RwLock};
 use tikv::config::{ConfigController, Module, TiKvConfig};
 use tikv::server::config::ServerConfigManager;
